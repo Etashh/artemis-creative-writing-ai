@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build and Start Artemis",
+			"type": "shell",
+			"command": "npm run build && npm start",
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			]
+		}
+	]
+}

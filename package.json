@@ -1,27 +1,57 @@
 {
-  "name": "artemis",
-  "version": "0.1.0",
+  "name": "artemis-creative-writing-ai",
+  "version": "1.0.0",
+  "description": "AI-powered creative writing assistant specialized in story development, character creation, and plot brainstorming",
   "private": true,
+  "keywords": [
+    "creative writing",
+    "AI assistant",
+    "story development",
+    "character creation",
+    "plot brainstorming",
+    "writing help",
+    "nextjs",
+    "openai",
+    "supabase"
+  ],
+  "author": "Artemis Team",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "type-check": "tsc --noEmit",
+    "deploy": "vercel --prod",
+    "preview": "vercel",
+    "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@huggingface/inference": "^4.5.1",
+    "@supabase/supabase-js": "^2.51.0",
+    "@types/uuid": "^10.0.0",
+    "framer-motion": "^12.23.6",
+    "groq-sdk": "^0.27.0",
+    "lucide-react": "^0.525.0",
+    "next": "15.4.1",
+    "openai": "^5.9.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.4.1"
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "15.4.1",
-    "@eslint/eslintrc": "^3"
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }

@@ -1,0 +1,21 @@
+{
+  "name": "Artemis - Creative Writing AI Assistant",
+  "short_name": "Artemis",
+  "description": "AI-powered creative writing assistant for story development, character creation, and writing craft improvement",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#a855f7",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32",
+      "type": "image/x-icon"
+    }
+  ]
+}
