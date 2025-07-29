@@ -12,8 +12,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate response using free AI alternatives with fallback to enhanced local responses
-    const response = await generateCreativeResponse(category, message, conversationHistory || [])
+    // Generate response using free AI alternatives with fallback
+    const response = await generateCreativeResponse(category, message, conversationHistory)
 
     return NextResponse.json({
       message: response,
