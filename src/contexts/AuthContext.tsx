@@ -2,7 +2,22 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+
+// Mock user for bypassing authentication
+const GUEST_USER: User = {
+  id: 'guest-user-id',
+  app_metadata: {},
+  user_metadata: { full_name: 'Guest User' },
+  aud: 'authenticated',
+  created_at: new Date().toISOString(),
+  email: 'guest@example.com',
+  email_confirmed_at: new Date().toISOString(),
+  phone: '',
+  confirmed_at: new Date().toISOString(),
+  last_sign_in_at: new Date().toISOString(),
+  role: '',
+  updated_at: new Date().toISOString(),
+} as User
 
 interface AuthContextType {
   user: User | null
@@ -13,66 +28,40 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Always provide the guest user for testing
+  const [user, setUser] = useState<User | null>(GUEST_USER)
+  const [loading, setLoading] = useState(false)
   const [hydrated, setHydrated] = useState(false)
+
+  // Mock function for creating user profile (not actually used)
+  const createUserProfile = async (user: User) => {
+    console.log('Mock: Creating user profile for testing')
+  }
 
   useEffect(() => {
     // Mark as hydrated on client
     setHydrated(true)
     
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+    // Set guest user immediately
+    setUser(GUEST_USER)
+    setLoading(false)
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null)
-        setLoading(false)
-
-        // Create user profile if signing up
-        if (event === 'SIGNED_IN' && session?.user && !user) {
-          await createUserProfile(session.user)
-        }
-      }
-    )
-
-    return () => subscription.unsubscribe()
+    // No actual auth listeners needed for testing
   }, [])
 
   // Prevent hydration mismatch
   if (!hydrated) {
     return (
-      <AuthContext.Provider value={{ user: null, loading: true, signOut: async () => {} }}>
+      <AuthContext.Provider value={{ user: GUEST_USER, loading: false, signOut: async () => {} }}>
         {children}
       </AuthContext.Provider>
     )
   }
 
-  const createUserProfile = async (user: User) => {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .insert({
-          id: user.id,
-          email: user.email!,
-          full_name: user.user_metadata.full_name || '',
-          avatar_url: user.user_metadata.avatar_url || null,
-        })
-
-      if (error && error.code !== '23505') { // Ignore duplicate key error
-        console.error('Error creating user profile:', error)
-      }
-    } catch (error) {
-      console.error('Error creating user profile:', error)
-    }
-  }
-
+  // Mock sign out function
   const signOut = async () => {
-    await supabase.auth.signOut()
+    console.log('Mock sign out (no actual auth)')
+    // Don't clear user since we want to stay logged in
   }
 
   return (

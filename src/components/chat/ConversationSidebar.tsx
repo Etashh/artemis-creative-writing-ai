@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, MessageSquare, Trash2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import { ConversationService, type Conversation } from '@/lib/conversation-service'
+import { ConversationService, type Conversation } from '@/lib/mock-conversation-service'
 import { Button } from '@/components/ui/Button'
 
 interface ConversationSidebarProps {
@@ -63,10 +63,10 @@ export function ConversationSidebar({
 
   if (loading) {
     return (
-      <div className="w-64 bg-gray-800 border-r border-gray-700 p-4">
+      <div className="w-64 bg-gray-800/70 backdrop-blur-sm border-r border-gray-700/50 p-4">
         <div className="animate-pulse space-y-3">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-12 bg-gray-700 rounded"></div>
+            <div key={i} className="h-16 bg-gray-700/60 rounded-lg glass-card"></div>
           ))}
         </div>
       </div>
@@ -74,11 +74,12 @@ export function ConversationSidebar({
   }
 
   return (
-    <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
-      <div className="p-4 border-b border-gray-700">
+    <div className="w-64 bg-gray-800/70 backdrop-blur-sm border-r border-gray-700/50 flex flex-col">
+      <div className="p-4 border-b border-gray-700/50">
         <Button 
           onClick={onNewConversation}
           className="w-full"
+          variant="gradient"
           size="sm"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -88,30 +89,36 @@ export function ConversationSidebar({
 
       <div className="flex-1 overflow-y-auto p-2">
         {conversations.length === 0 ? (
-          <div className="text-center text-gray-400 mt-8">
-            <MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No conversations yet</p>
-            <p className="text-xs">Start a new conversation to begin!</p>
+          <div className="text-center text-gray-400 mt-8 animate-fadeInUp">
+            <div className="relative w-16 h-16 mx-auto mb-3">
+              <MessageSquare className="w-16 h-16 mx-auto text-purple-400 animate-float" />
+              <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full blur-xl animate-pulse"></div>
+            </div>
+            <p className="text-sm gradient-text-purple">No conversations yet</p>
+            <p className="text-xs mt-2 animate-fadeIn animation-delay-300">Start a new conversation to begin!</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {conversations.map((conversation) => (
+          <div className="space-y-3">
+            {conversations.map((conversation, index) => (
               <div
                 key={conversation.id}
                 onClick={() => onConversationSelect(conversation)}
-                className={`group p-3 rounded-lg cursor-pointer transition-colors ${
+                className={`group p-3 rounded-lg cursor-pointer transition-all duration-300 animate-fadeIn glass-card hover:shadow-lg ${
                   activeConversationId === conversation.id
-                    ? 'bg-purple-600'
-                    : 'bg-gray-700 hover:bg-gray-600'
+                    ? 'bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-filter backdrop-blur-sm'
+                    : 'bg-gray-700/60 hover:bg-gray-700/80 backdrop-filter backdrop-blur-sm'
                 }`}
+                style={{ animationDelay: `${index * 100}ms` }}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2 flex-1 min-w-0">
-                    <span className="text-sm">
+                    <span className={`text-xl ${activeConversationId === conversation.id ? 'animate-bounce' : ''}`}>
                       {getCategoryIcon(conversation.category)}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">
+                      <p className={`text-sm font-medium text-white truncate ${
+                        activeConversationId === conversation.id ? 'gradient-text-purple' : ''
+                      }`}>
                         {truncateTitle(conversation.title)}
                       </p>
                       <p className="text-xs text-gray-400 capitalize">
@@ -123,8 +130,9 @@ export function ConversationSidebar({
                   <button
                     onClick={(e) => handleDeleteConversation(conversation.id, e)}
                     className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-400 transition-all"
+                    aria-label="Delete conversation"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
                 

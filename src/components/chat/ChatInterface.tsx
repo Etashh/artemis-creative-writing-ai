@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Send, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { ConversationService, type Conversation, type Message } from '@/lib/conversation-service'
+import { ConversationService, type Conversation, type Message } from '@/lib/mock-conversation-service'
 import { generateCreativeResponse } from '@/lib/free-ai-alternatives'
 
 interface ChatInterfaceProps {
@@ -67,6 +67,16 @@ export function ChatInterface({
     const words = message.split(' ').slice(0, 6)
     return words.join(' ') + (message.split(' ').length > 6 ? '...' : '')
   }
+  
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'story-development': return '📖'
+      case 'character-creation': return '👥'
+      case 'plot-brainstorming': return '💡'
+      case 'writing-style': return '✍️'
+      default: return '💬'
+    }
+  }
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || loading) return
@@ -109,34 +119,91 @@ export function ChatInterface({
         setMessages(prev => [...prev, userMessageObj])
       }
 
-      // Generate AI response
-      const aiResponse = await generateCreativeResponse(
-        selectedCategory,
-        userMessage,
-        messages.map(m => ({ role: m.role, content: m.content }))
-      )
+      // Generate AI response using the API endpoint
+      try {
+        // Call the API endpoint instead of the function directly
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: userMessage,
+            category: selectedCategory,
+            conversationHistory: messages.map(m => ({ role: m.role, content: m.content }))
+          }),
+        });
 
-      // Add AI response
-      const aiMessageObj = await ConversationService.addMessage(
-        conversation.id,
-        'assistant',
-        aiResponse
-      )
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const aiResponse = data.message;
+
+        // Add AI response
+        const aiMessageObj = await ConversationService.addMessage(
+          conversation.id,
+          'assistant',
+          aiResponse
+        )
 
       if (aiMessageObj) {
         setMessages(prev => [...prev, aiMessageObj])
       }
-
+      } catch (apiError) {
+        console.error('API call failed:', apiError);
+        throw new Error(`API call failed: ${apiError.message}`);
+      }
     } catch (error) {
       console.error('Error sending message:', error)
-      // Add error message to UI
+      // Add a more detailed error message to UI
+      const errorMessage = error instanceof Error 
+        ? `Error: ${error.message}` 
+        : 'Sorry, I encountered an error. Please try again.';
+      
+      // Add more detailed troubleshooting info
+      const troubleshootingMsg = 
+        "This could be due to API rate limits or connection issues. " +
+        "I'll use my built-in creative writing expertise instead.";
+      
       setMessages(prev => [...prev, {
         id: 'error-' + Date.now(),
         conversation_id: activeConversation?.id || '',
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
+        content: 'Sorry, I encountered an error while connecting to the AI service. ' + 
+                 troubleshootingMsg + 
+                 '\n\nLet me help with your creative writing question anyway!',
         created_at: new Date().toISOString()
       }])
+      
+      // After showing error, try to generate a local fallback response
+      try {
+        setTimeout(async () => {
+          if (!activeConversation) return;
+          
+          const localResponse = 
+            "Here are some creative writing tips that might help:\n\n" +
+            "1. **Write regularly** - Even just 15 minutes a day keeps your creativity flowing\n" +
+            "2. **Read widely** - The best writers are also avid readers\n" +
+            "3. **Show, don't tell** - Use sensory details to bring scenes to life\n" +
+            "4. **Embrace revision** - First drafts are just the beginning\n" +
+            "5. **Join a writing community** - Feedback is essential for growth\n\n" +
+            "What specific aspect of writing would you like me to explore further?";
+            
+          const fallbackMessage = await ConversationService.addMessage(
+            activeConversation.id,
+            'assistant',
+            localResponse
+          );
+          
+          if (fallbackMessage) {
+            setMessages(prev => [...prev, fallbackMessage]);
+          }
+        }, 2000);
+      } catch (fallbackError) {
+        console.error('Error generating fallback response:', fallbackError);
+      }
     } finally {
       setLoading(false)
     }
@@ -160,19 +227,20 @@ export function ChatInterface({
   return (
     <div className="flex-1 flex flex-col">
       {/* Header */}
-      <div className="border-b border-gray-700 p-4">
+      <div className="border-b border-gray-700/50 p-4 backdrop-blur-sm glass">
         {activeConversation ? (
-          <div>
-            <h2 className="text-lg font-semibold text-white">
+          <div className="animate-fadeIn">
+            <h2 className="text-xl font-semibold gradient-text-purple">
               {activeConversation.title}
             </h2>
-            <p className="text-sm text-gray-400 capitalize">
+            <p className="text-sm text-gray-400 capitalize flex items-center mt-1">
+              <span className="mr-2">{getCategoryIcon(activeConversation.category)}</span>
               {activeConversation.category.replace('-', ' ')}
             </p>
           </div>
         ) : showNewConversation ? (
-          <div>
-            <h2 className="text-lg font-semibold text-white mb-3">
+          <div className="animate-fadeIn">
+            <h2 className="text-xl font-semibold gradient-text-purple mb-3">
               Start a New Conversation
             </h2>
             <div className="flex flex-wrap gap-2">
@@ -180,22 +248,25 @@ export function ChatInterface({
                 <button
                   key={category.id}
                   onClick={() => setSelectedCategory(category.id)}
-                  className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                  className={`px-3 py-2 rounded-lg text-sm transition-all duration-300 flex items-center ${
                     selectedCategory === category.id
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md transform hover:scale-105'
+                      : 'bg-gray-800/80 text-gray-300 hover:bg-gray-700 backdrop-blur-sm transform hover:scale-105 hover:shadow-md'
                   }`}
                 >
-                  <span className="mr-1">{category.icon}</span>
+                  <span className="mr-2 animate-bounce">{category.icon}</span>
                   {category.name}
                 </button>
               ))}
             </div>
           </div>
         ) : (
-          <div className="text-center text-gray-400">
-            <Sparkles className="w-8 h-8 mx-auto mb-2" />
-            <p>Select a conversation or start a new one</p>
+          <div className="text-center text-gray-400 py-2 animate-fadeIn">
+            <div className="relative w-10 h-10 mx-auto mb-3">
+              <Sparkles className="w-10 h-10 mx-auto text-purple-400 animate-float" />
+              <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full blur-xl animate-pulse"></div>
+            </div>
+            <p className="gradient-text-purple">Select a conversation or start a new one</p>
           </div>
         )}
       </div>
@@ -203,19 +274,28 @@ export function ChatInterface({
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (showNewConversation || activeConversation) ? (
-          <div className="text-center text-gray-400 mt-8">
-            <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p className="text-lg font-medium">Ready to unleash your creativity?</p>
-            <p className="text-sm">Ask me anything about writing, and let&apos;s craft something amazing!</p>
+          <div className="text-center text-gray-400 mt-8 animate-fadeInUp">
+            <div className="w-20 h-20 mx-auto mb-4 relative">
+              <Sparkles className="w-20 h-20 mx-auto text-purple-400 animate-float" />
+              <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full blur-xl animate-pulse"></div>
+            </div>
+            <p className="text-xl font-medium gradient-text-purple">Ready to unleash your creativity?</p>
+            <p className="text-sm mt-2 animate-fadeIn animation-delay-300">Ask me anything about writing, and let&apos;s craft something amazing!</p>
           </div>
         ) : (
-          messages.map((message) => (
-            <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-3xl px-4 py-2 rounded-lg ${
-                message.role === 'user'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-700 text-gray-100'
-              }`}>
+          messages.map((message, index) => (
+            <div 
+              key={message.id} 
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}
+              style={{ animationDelay: `${index * 100}ms` }}
+            >
+              <div 
+                className={`max-w-3xl px-4 py-3 rounded-lg ${
+                  message.role === 'user'
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white glass-card'
+                    : 'bg-gray-800/80 text-gray-100 glass-card'
+                } transform transition-all duration-300 hover:scale-[1.01] hover:shadow-lg`}
+              >
                 <div className="whitespace-pre-wrap">{message.content}</div>
                 <div className="text-xs opacity-70 mt-1">
                   {new Date(message.created_at).toLocaleTimeString()}
@@ -226,11 +306,14 @@ export function ChatInterface({
         )}
         
         {loading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-700 text-gray-100 px-4 py-2 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500"></div>
-                <span>Artemis is thinking...</span>
+          <div className="flex justify-start animate-fadeIn">
+            <div className="bg-gray-800/80 text-gray-100 px-4 py-3 rounded-lg glass-card">
+              <div className="flex items-center space-x-3">
+                <div className="relative w-6 h-6">
+                  <div className="absolute top-0 left-0 w-full h-full rounded-full border-2 border-purple-500 border-t-transparent animate-spin"></div>
+                  <div className="absolute top-0 left-0 w-full h-full rounded-full border-2 border-pink-500 border-b-transparent animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
+                </div>
+                <span className="gradient-text-purple">Artemis is crafting a response...</span>
               </div>
             </div>
           </div>
@@ -241,7 +324,7 @@ export function ChatInterface({
 
       {/* Input */}
       {(activeConversation || showNewConversation) && (
-        <div className="border-t border-gray-700 p-4">
+        <div className="border-t border-gray-700/50 p-4 backdrop-blur-sm">
           <div className="flex space-x-2">
             <Input
               value={inputMessage}
@@ -249,13 +332,16 @@ export function ChatInterface({
               onKeyPress={handleKeyPress}
               placeholder="Ask Artemis about your writing..."
               disabled={loading}
+              variant="glass"
               className="flex-1"
             />
             <Button
               onClick={handleSendMessage}
               disabled={loading || !inputMessage.trim()}
+              variant="gradient"
+              className="px-4"
             >
-              <Send className="w-4 h-4" />
+              <Send className="w-5 h-5" />
             </Button>
           </div>
         </div>

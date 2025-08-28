@@ -13,12 +13,12 @@ import { HfInference } from '@huggingface/inference'
 import Groq from 'groq-sdk'
 
 // Initialize AI clients conditionally
-export const hf = new HfInference(process.env.HUGGINGFACE_API_KEY)
+export const hf = process.env.HUGGINGFACE_API_KEY ? 
+  new HfInference(process.env.HUGGINGFACE_API_KEY) : null;
 
 // Only initialize Groq if API key is available
-export const groq = process.env.GROQ_API_KEY ? new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-}) : null
+export const groq = process.env.GROQ_API_KEY ? 
+  new Groq({ apiKey: process.env.GROQ_API_KEY }) : null;
 
 // Free models that work well for creative writing
 export const FREE_MODELS = {
@@ -41,9 +41,10 @@ export const FREE_MODELS = {
 }
 
 // 1. Groq Integration (Very fast, generous free tier)
-export async function generateWithGroq(prompt: string, userMessage: string) {
+export async function generateWithGroq(prompt: string, userMessage: string): Promise<string | null> {
   if (!process.env.GROQ_API_KEY || !groq) {
-    return null
+    console.log('🔴 No GROQ API key available');
+    return null;
   }
 
   try {
@@ -55,19 +56,20 @@ export async function generateWithGroq(prompt: string, userMessage: string) {
       model: FREE_MODELS.groq.primary,
       max_tokens: 1000,
       temperature: 0.8,
-    })
+    });
 
-    return chatCompletion.choices[0]?.message?.content || null
+    return chatCompletion.choices[0]?.message?.content || null;
   } catch (error) {
-    console.error('Groq API error:', error)
-    return null
+    console.error('🔴 Groq API error:', error);
+    return null;
   }
 }
 
 // 2. Together AI Integration (Good free tier)
-export async function generateWithTogether(prompt: string, userMessage: string) {
+export async function generateWithTogether(prompt: string, userMessage: string): Promise<string | null> {
   if (!process.env.TOGETHER_API_KEY) {
-    return null
+    console.log('🔴 No TOGETHER API key available');
+    return null;
   }
 
   try {
@@ -86,24 +88,25 @@ export async function generateWithTogether(prompt: string, userMessage: string) 
         max_tokens: 1000,
         temperature: 0.8,
       }),
-    })
+    });
 
     if (!response.ok) {
-      throw new Error(`Together API error: ${response.statusText}`)
+      throw new Error(`Together API error: ${response.statusText}`);
     }
 
-    const data = await response.json()
-    return data.choices[0]?.message?.content
+    const data = await response.json();
+    return data.choices[0]?.message?.content || null;
   } catch (error) {
-    console.error('Together API error:', error)
-    return null
+    console.error('🔴 Together API error:', error);
+    return null;
   }
 }
 
 // 3. Hugging Face Integration (Using text generation models)
-export async function generateWithHuggingFace(prompt: string, userMessage: string) {
+export async function generateWithHuggingFace(prompt: string, userMessage: string): Promise<string | null> {
   if (!process.env.HUGGINGFACE_API_KEY) {
-    return null
+    console.log('🔴 No HUGGINGFACE API key available');
+    return null;
   }
 
   try {
@@ -112,11 +115,11 @@ export async function generateWithHuggingFace(prompt: string, userMessage: strin
       'google/flan-t5-large',
       'microsoft/DialoGPT-medium',
       'bigscience/bloom-560m'
-    ]
+    ];
 
     for (const modelName of models) {
       try {
-        console.log(`🔄 Trying model: ${modelName}`)
+        console.log(`🔄 Trying model: ${modelName}`);
         
         const response = await fetch(`https://api-inference.huggingface.co/models/${modelName}`, {
           method: 'POST',
@@ -137,51 +140,52 @@ export async function generateWithHuggingFace(prompt: string, userMessage: strin
               wait_for_model: true,
               use_cache: false
             }
-          })
-        })
+          }),
+          signal: AbortSignal.timeout(10000) // Timeout after 10 seconds
+        });
 
-        console.log(`📡 Response status for ${modelName}: ${response.status}`)
+        console.log(`📡 Response status for ${modelName}: ${response.status}`);
 
         if (response.ok) {
-          const data = await response.json()
-          console.log(`📊 Response data for ${modelName}:`, JSON.stringify(data).substring(0, 200))
+          const data = await response.json();
+          console.log(`📊 Response data for ${modelName}:`, JSON.stringify(data).substring(0, 200));
           
           if (Array.isArray(data) && data[0]?.generated_text) {
-            let generatedText = data[0].generated_text.trim()
+            let generatedText = data[0].generated_text.trim();
             
             // Clean up the response
-            generatedText = generatedText.replace(/^(Question about creative writing:|Provide helpful advice for creative writing:)/gm, '').trim()
+            generatedText = generatedText.replace(/^(Question about creative writing:|Provide helpful advice for creative writing:)/gm, '').trim();
             
             if (generatedText.length > 30) {
-              console.log(`✅ ${modelName} generated response:`, generatedText.substring(0, 100))
-              return generatedText
+              console.log(`✅ ${modelName} generated response:`, generatedText.substring(0, 100));
+              return generatedText;
             }
           } else if (data.generated_text) {
-            const generatedText = data.generated_text.trim()
+            const generatedText = data.generated_text.trim();
             if (generatedText.length > 30) {
-              console.log(`✅ ${modelName} generated response:`, generatedText.substring(0, 100))
-              return generatedText
+              console.log(`✅ ${modelName} generated response:`, generatedText.substring(0, 100));
+              return generatedText;
             }
           }
         } else {
-          const errorText = await response.text()
-          console.log(`❌ ${modelName} error:`, response.status, errorText.substring(0, 100))
+          const errorText = await response.text();
+          console.log(`❌ ${modelName} error:`, response.status, errorText.substring(0, 100));
         }
       } catch (modelError) {
-        console.log(`❌ Model ${modelName} failed:`, modelError)
-        continue
+        console.log(`❌ Model ${modelName} failed:`, modelError);
+        continue;
       }
     }
 
-    return null
+    return null;
   } catch (error) {
-    console.error('❌ Hugging Face API error:', error)
-    return null
+    console.error('❌ Hugging Face API error:', error);
+    return null;
   }
 }
 
 // 4. Local Ollama Integration (Completely free, runs locally)
-export async function generateWithOllama(prompt: string, userMessage: string) {
+export async function generateWithOllama(prompt: string, userMessage: string): Promise<string | null> {
   try {
     // Check if Ollama is running locally
     const response = await fetch('http://localhost:11434/api/generate', {
@@ -198,17 +202,19 @@ export async function generateWithOllama(prompt: string, userMessage: string) {
           num_predict: 500,
         },
       }),
-    })
+      signal: AbortSignal.timeout(5000) // Timeout after 5 seconds
+    });
 
     if (!response.ok) {
-      return null
+      return null;
     }
 
-    const data = await response.json()
-    return data.response
-  } catch (_error) {
+    const data = await response.json();
+    return data.response || null;
+  } catch (error) {
     // Ollama not running locally - this is expected
-    return null
+    console.log('🔴 Ollama not available locally:', error);
+    return null;
   }
 }
 
@@ -255,27 +261,17 @@ Think creatively and offer multiple options for the writer to consider.`,
 
 Provide before/after examples to illustrate improvements.`,
 
-  'genre-guidance': `You are Artemis, a genre-specific writing guide. You help writers understand and master:
+  'general': `You are Artemis, a comprehensive creative writing assistant. You help writers with:
 
-- Fantasy: World-building, magic systems, mythology
-- Science Fiction: Technology, world-building, scientific accuracy
-- Romance: Character chemistry, relationship development, emotional arcs
-- Mystery/Thriller: Clues, red herrings, pacing, suspense
-- Horror: Atmosphere, tension, psychological elements
-- Historical Fiction: Research, authenticity, period details
+- Story and plot development
+- Character creation and depth
+- Dialogue and description techniques
+- Writing style and voice
+- Genre-specific guidance
+- Overcoming writer's block
 
-Tailor advice to the specific genre requirements and conventions.`,
-
-  'writing-prompts': `You are Artemis, a creative prompt generator. You provide:
-
-- Unique story starters and scenario ideas
-- Character development exercises
-- World-building challenges
-- Writing technique practice prompts
-- Genre-specific creative exercises
-
-Make prompts engaging, specific, and designed to spark creativity.`
-}
+Provide tailored advice based on the writer's specific needs and questions.`
+};
 
 // Fallback to cascading AI providers
 export async function generateCreativeResponse(
@@ -284,69 +280,90 @@ export async function generateCreativeResponse(
   _conversationHistory: Array<{role: string, content: string}> = []
 ): Promise<string> {
   const prompt = CREATIVE_WRITING_PROMPTS[category as keyof typeof CREATIVE_WRITING_PROMPTS] || 
-                CREATIVE_WRITING_PROMPTS['story-development']
+                CREATIVE_WRITING_PROMPTS['general'];
 
-  console.log(`🎯 Generating response for: "${userMessage}"`)
-  console.log(`📝 Category: ${category}`)
-  console.log(`🔑 HF API Key available: ${!!process.env.HUGGINGFACE_API_KEY}`)
-  console.log(`🔑 GROQ API Key available: ${!!process.env.GROQ_API_KEY}`)
-  console.log(`🔑 TOGETHER API Key available: ${!!process.env.TOGETHER_API_KEY}`)
+  console.log(`🎯 Generating response for: "${userMessage}"`);
+  console.log(`📝 Category: ${category}`);
+  console.log(`🔑 HF API Key available: ${!!process.env.HUGGINGFACE_API_KEY}`);
+  console.log(`🔑 GROQ API Key available: ${!!process.env.GROQ_API_KEY}`);
+  console.log(`🔑 TOGETHER API Key available: ${!!process.env.TOGETHER_API_KEY}`);
   
   // Keep track of all errors for debugging
   const errors: Record<string, any> = {};
   
-  // Try AI providers in order of preference (free tier first)
+  // Try AI providers in order of preference
   
-  // 1. Try Hugging Face first (we have API key)
-  console.log('🤖 Trying Hugging Face...')
+  // 1. Try Hugging Face
   try {
-    const hfResponse = await generateWithHuggingFace(prompt, userMessage)
+    console.log('🤖 Trying Hugging Face...');
+    const hfResponse = await generateWithHuggingFace(prompt, userMessage);
     if (hfResponse && hfResponse.length > 20) {
-      console.log('✅ Generated response using Hugging Face')
-      return hfResponse
+      console.log('✅ Generated response using Hugging Face');
+      return hfResponse;
     }
-  } catch (hfError) {
-    console.error('🔴 Hugging Face API error:', hfError)
-    errors['huggingface'] = hfError
+  } catch (error) {
+    console.error('🔴 Hugging Face API error:', error);
+    errors['huggingface'] = error;
   }
 
-  // 2. Try Groq (if API key available)
-  console.log('🤖 Trying Groq...')
-  const groqResponse = await generateWithGroq(prompt, userMessage)
-  if (groqResponse) {
-    console.log('✅ Generated response using Groq')
-    return groqResponse
+  // 2. Try Groq
+  try {
+    console.log('🤖 Trying Groq...');
+    const groqResponse = await generateWithGroq(prompt, userMessage);
+    if (groqResponse && groqResponse.length > 20) {
+      console.log('✅ Generated response using Groq');
+      return groqResponse;
+    }
+  } catch (error) {
+    console.error('🔴 Groq API error:', error);
+    errors['groq'] = error;
   }
 
   // 3. Try Together AI
-  console.log('🤖 Trying Together AI...')
-  const togetherResponse = await generateWithTogether(prompt, userMessage)
-  if (togetherResponse) {
-    console.log('✅ Generated response using Together AI')
-    return togetherResponse
+  try {
+    console.log('🤖 Trying Together AI...');
+    const togetherResponse = await generateWithTogether(prompt, userMessage);
+    if (togetherResponse && togetherResponse.length > 20) {
+      console.log('✅ Generated response using Together AI');
+      return togetherResponse;
+    }
+  } catch (error) {
+    console.error('🔴 Together API error:', error);
+    errors['together'] = error;
   }
 
   // 4. Try local Ollama
-  console.log('🤖 Trying Ollama...')
-  const ollamaResponse = await generateWithOllama(prompt, userMessage)
-  if (ollamaResponse) {
-    console.log('✅ Generated response using local Ollama')
-    return ollamaResponse
+  try {
+    console.log('🤖 Trying Ollama...');
+    const ollamaResponse = await generateWithOllama(prompt, userMessage);
+    if (ollamaResponse && ollamaResponse.length > 20) {
+      console.log('✅ Generated response using local Ollama');
+      return ollamaResponse;
+    }
+  } catch (error) {
+    console.error('🔴 Ollama error:', error);
+    errors['ollama'] = error;
   }
 
+  // Log all errors for debugging
+  console.log('🔴 All AI provider attempts failed:', JSON.stringify(errors));
+  
   // 5. Use intelligent local analysis as fallback
-  console.log('🧠 Using intelligent local analysis (analyzing user input)')
-  return generateEnhancedLocalResponse(category, userMessage)
+  console.log('🧠 Using intelligent local analysis (analyzing user input)');
+  const localResponse = generateEnhancedLocalResponse(category, userMessage);
+  
+  // Add a note that we're using local response generation
+  return `${localResponse}\n\n_[Note: This response was generated using Artemis's built-in creative writing expertise.]_`;
 }
 
 // Enhanced local responses that analyze user input and provide tailored advice
 function generateEnhancedLocalResponse(category: string, userMessage: string): string {
-  const message = userMessage.toLowerCase()
+  const message = userMessage.toLowerCase();
   
   // Analyze user's specific question and provide tailored response
-  const analysisResult = analyzeUserIntent(message, category)
+  const analysisResult = analyzeUserIntent(message, category);
   
-  return generateTailoredResponse(analysisResult, userMessage, category)
+  return generateTailoredResponse(analysisResult, userMessage, category);
 }
 
 // Analyze what the user is specifically asking about
@@ -356,7 +373,7 @@ function analyzeUserIntent(message: string, category: string) {
     keywords: [] as string[],
     intent: 'general',
     specificity: 'low'
-  }
+  };
 
   // Detect specific topics and keywords
   const topicMaps = {
@@ -386,54 +403,58 @@ function analyzeUserIntent(message: string, category: string) {
       'dialogue': ['dialogue', 'conversation', 'speech', 'talking'],
       'grammar': ['grammar', 'punctuation', 'sentence', 'paragraph']
     }
-  }
+  };
 
-  const categoryTopics = topicMaps[category as keyof typeof topicMaps] || {}
+  const categoryTopics = topicMaps[category as keyof typeof topicMaps] || {};
   
   for (const [topic, keywords] of Object.entries(categoryTopics)) {
-    const matches = keywords.filter(keyword => message.includes(keyword))
+    const matches = keywords.filter(keyword => message.includes(keyword));
     if (matches.length > 0) {
-      analysis.topics.push(topic)
-      analysis.keywords.push(...matches)
+      analysis.topics.push(topic);
+      analysis.keywords.push(...matches);
     }
   }
 
   // Determine intent based on question words
-  if (message.includes('how')) analysis.intent = 'howTo'
-  else if (message.includes('what') || message.includes('which')) analysis.intent = 'definition'
-  else if (message.includes('why')) analysis.intent = 'explanation'
-  else if (message.includes('help') || message.includes('stuck')) analysis.intent = 'assistance'
-  else if (message.includes('example') || message.includes('show')) analysis.intent = 'examples'
+  if (message.includes('how')) analysis.intent = 'howTo';
+  else if (message.includes('what') || message.includes('which')) analysis.intent = 'definition';
+  else if (message.includes('why')) analysis.intent = 'explanation';
+  else if (message.includes('help') || message.includes('stuck')) analysis.intent = 'assistance';
+  else if (message.includes('example') || message.includes('show')) analysis.intent = 'examples';
 
   // Determine specificity
-  if (analysis.keywords.length > 3 || message.length > 50) analysis.specificity = 'high'
-  else if (analysis.keywords.length > 1 || message.length > 20) analysis.specificity = 'medium'
+  if (analysis.keywords.length > 3 || message.length > 50) analysis.specificity = 'high';
+  else if (analysis.keywords.length > 1 || message.length > 20) analysis.specificity = 'medium';
 
-  return analysis
+  return analysis;
 }
 
 // Generate a response tailored to the user's specific question
-function generateTailoredResponse(analysis: { topics: string[]; intent: string; specificity: string; keywords: string[] }, userMessage: string, category: string): string {
-  const { topics, intent, specificity, keywords } = analysis
+function generateTailoredResponse(
+  analysis: { topics: string[]; intent: string; specificity: string; keywords: string[] }, 
+  userMessage: string, 
+  category: string
+): string {
+  const { topics, intent, specificity, keywords } = analysis;
 
-  let response = ""
+  let response = "";
 
   // Start with a personalized acknowledgment
   if (specificity === 'high') {
-    response += `Great question about ${topics.join(' and ') || 'your creative writing'}! `
+    response += `Great question about ${topics.join(' and ') || 'your creative writing'}! `;
   } else {
-    response += `I'd love to help you with ${category.replace('-', ' ')}! `
+    response += `I'd love to help you with ${category.replace('-', ' ')}! `;
   }
 
   // Provide tailored advice based on detected topics and intent
   if (intent === 'howTo') {
-    response += generateHowToResponse(topics, keywords, category)
+    response += generateHowToResponse(topics, keywords, category);
   } else if (intent === 'examples') {
-    response += generateExampleResponse(topics, keywords, category)
+    response += generateExampleResponse(topics, keywords, category);
   } else if (intent === 'assistance' || userMessage.toLowerCase().includes('stuck')) {
-    response += generateAssistanceResponse(topics, keywords, category)
+    response += generateAssistanceResponse(topics, keywords, category);
   } else {
-    response += generateGeneralAdvice(topics, keywords, category)
+    response += generateGeneralAdvice(topics, keywords, category);
   }
 
   // Add specific techniques based on detected topics
@@ -442,7 +463,7 @@ function generateTailoredResponse(analysis: { topics: string[]; intent: string; 
 - Consider the three-act structure: Setup → Confrontation → Resolution
 - Each scene should either advance plot or develop character
 - Build tension through escalating obstacles
-- Give your protagonist both external and internal conflicts`
+- Give your protagonist both external and internal conflicts`;
   }
 
   if (topics.includes('character') || category === 'character-development') {
@@ -450,7 +471,7 @@ function generateTailoredResponse(analysis: { topics: string[]; intent: string; 
 - Give characters clear motivations and goals
 - Create believable flaws alongside strengths
 - Show character growth through actions, not just dialogue
-- Develop unique voices for each character`
+- Develop unique voices for each character`;
   }
 
   if (topics.includes('dialogue')) {
@@ -458,13 +479,13 @@ function generateTailoredResponse(analysis: { topics: string[]; intent: string; 
 - Each character should have a distinct speaking style
 - Use subtext - characters rarely say exactly what they mean
 - Break up dialogue with action beats
-- Read dialogue aloud to test if it sounds natural`
+- Read dialogue aloud to test if it sounds natural`;
   }
 
   // Add follow-up questions to encourage deeper exploration
-  response += generateFollowUpQuestions(topics, category, userMessage)
+  response += generateFollowUpQuestions(topics, category, userMessage);
 
-  return response
+  return response;
 }
 
 function generateHowToResponse(topics: string[], keywords: string[], category: string): string {
@@ -475,7 +496,7 @@ function generateHowToResponse(topics: string[], keywords: string[], category: s
 2. **Create obstacles** - What prevents them from getting it?
 3. **Escalate the stakes** - What happens if they fail?
 4. **Plan key turning points** - When does everything change?
-5. **Build to a climax** - How will the main conflict be resolved?`
+5. **Build to a climax** - How will the main conflict be resolved?`;
   }
 
   if (topics.includes('character') || category === 'character-development') {
@@ -485,7 +506,7 @@ function generateHowToResponse(topics: string[], keywords: string[], category: s
 2. **Give them a fatal flaw** - What weakness will cause problems?
 3. **Create a detailed backstory** - What shaped them?
 4. **Establish their voice** - How do they speak and think?
-5. **Plan their character arc** - How will they change?`
+5. **Plan their character arc** - How will they change?`;
   }
 
   return `Here's a step-by-step approach to ${category.replace('-', ' ')}:
@@ -494,7 +515,7 @@ function generateHowToResponse(topics: string[], keywords: string[], category: s
 2. **Practice specific techniques** - Focus on one skill at a time
 3. **Study examples** - Read works in your genre
 4. **Write regularly** - Consistency builds skill
-5. **Seek feedback** - Get input from other writers`
+5. **Seek feedback** - Get input from other writers`;
 }
 
 function generateExampleResponse(topics: string[], keywords: string[], category: string): string {
@@ -505,7 +526,7 @@ function generateExampleResponse(topics: string[], keywords: string[], category:
 
 **Compelling Antagonist:** A corporate CEO who genuinely believes they're saving the world through technology, but their methods harm communities. They're not evil - they're convinced they're right.
 
-**Supporting Character:** A wise mentor who appears helpful but secretly manipulates events for their own agenda, revealed only at the story's climax.`
+**Supporting Character:** A wise mentor who appears helpful but secretly manipulates events for their own agenda, revealed only at the story's climax.`;
   }
 
   if (topics.includes('plot')) {
@@ -517,7 +538,7 @@ function generateExampleResponse(topics: string[], keywords: string[], category:
 - Act III: Final confrontation and resolution (Resolution)
 
 **Hero's Journey:**
-- Ordinary World → Call to Adventure → Crossing the Threshold → Tests and Trials → Return Transformed`
+- Ordinary World → Call to Adventure → Crossing the Threshold → Tests and Trials → Return Transformed`;
   }
 
   return `Here are some practical examples for ${category.replace('-', ' ')}:
@@ -526,7 +547,7 @@ function generateExampleResponse(topics: string[], keywords: string[], category:
 **Better:** "Sarah's hands trembled as she reached for the letter"
 
 **Good:** Describes the setting
-**Better:** "The abandoned house groaned in the wind, its broken shutters flapping like wounded birds"`
+**Better:** "The abandoned house groaned in the wind, its broken shutters flapping like wounded birds"`;
 }
 
 function generateAssistanceResponse(_topics: string[], _keywords: string[], _category: string): string {
@@ -548,7 +569,7 @@ function generateAssistanceResponse(_topics: string[], _keywords: string[], _cat
 - Create a dialogue between two characters who disagree
 - Write their internal monologue during a stressful moment
 
-What specifically are you stuck on? I can provide more targeted help!`
+What specifically are you stuck on? I can provide more targeted help!`;
 }
 
 function generateGeneralAdvice(topics: string[], keywords: string[], category: string): string {
@@ -592,35 +613,35 @@ The best plots come from character motivation meeting external obstacles.`,
 - **Active Voice:** Use strong, specific verbs
 
 Your unique voice develops through consistent practice and conscious choice.`
-  }
+  };
 
-  return adviceMap[category as keyof typeof adviceMap] || adviceMap['story-development']
+  return adviceMap[category as keyof typeof adviceMap] || adviceMap['story-development'];
 }
 
 function generateFollowUpQuestions(topics: string[], category: string, _userMessage: string): string {
-  const questions = []
+  const questions = [];
 
   if (topics.includes('character') || category === 'character-development') {
-    questions.push("What's your character's biggest fear?")
-    questions.push("How do they handle conflict?")
+    questions.push("What's your character's biggest fear?");
+    questions.push("How do they handle conflict?");
   }
 
   if (topics.includes('plot') || category === 'story-development') {
-    questions.push("What genre are you writing in?")
-    questions.push("What's at stake if your protagonist fails?")
+    questions.push("What genre are you writing in?");
+    questions.push("What's at stake if your protagonist fails?");
   }
 
   if (topics.includes('dialogue')) {
-    questions.push("Do your characters have distinct speaking styles?")
+    questions.push("Do your characters have distinct speaking styles?");
   }
 
   if (questions.length === 0) {
-    questions.push("What specific aspect would you like to explore further?")
-    questions.push("What's the biggest challenge you're facing with this project?")
+    questions.push("What specific aspect would you like to explore further?");
+    questions.push("What's the biggest challenge you're facing with this project?");
   }
 
   return `\n\n**Let's dig deeper:**
 ${questions.slice(0, 2).map(q => `- ${q}`).join('\n')}
 
-Feel free to share more details about your project - the more specific you are, the better I can help!`
+Feel free to share more details about your project - the more specific you are, the better I can help!`;
 }

@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ConversationSidebar } from '@/components/chat/ConversationSidebar'
 import { ChatInterface } from '@/components/chat/ChatInterface'
-import { type Conversation } from '@/lib/conversation-service'
+import { type Conversation } from '@/lib/mock-conversation-service'
 import { Button } from '@/components/ui/Button'
 import { LogOut, User } from 'lucide-react'
 
@@ -13,13 +13,10 @@ export function ProtectedChatLayout() {
   const { user, loading, signOut } = useAuth()
   const router = useRouter()
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null)
-  const [showNewConversation, setShowNewConversation] = useState(false)
+  const [showNewConversation, setShowNewConversation] = useState(true)  // Start with new conversation by default
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/auth')
-    }
-  }, [user, loading, router])
+  // No need to redirect to auth page anymore, remove that effect
+  // The user is always available as a guest
 
   const handleConversationSelect = (conversation: Conversation) => {
     setActiveConversation(conversation)
@@ -38,7 +35,7 @@ export function ProtectedChatLayout() {
 
   const handleSignOut = async () => {
     await signOut()
-    router.push('/auth')
+    // No redirect needed for testing
   }
 
   if (loading) {
@@ -49,17 +46,15 @@ export function ProtectedChatLayout() {
     )
   }
 
-  if (!user) {
-    return null // Will redirect to auth
-  }
-
+  // We'll always have a user now (guest user), so we can render the chat interface
+  // We'll always have a user now (guest user), so we can render the chat interface
   return (
     <div className="flex h-screen bg-gray-900">
       {/* Header */}
       <div className="absolute top-0 right-0 z-10 p-4 flex items-center space-x-2">
         <div className="flex items-center space-x-2 text-sm text-gray-300">
           <User className="w-4 h-4" />
-          <span>{user.user_metadata?.full_name || user.email}</span>
+          <span>{user?.user_metadata?.full_name || "Guest User"}</span>
         </div>
         <Button 
           onClick={handleSignOut}
@@ -84,7 +79,7 @@ export function ProtectedChatLayout() {
           activeConversation={activeConversation}
           showNewConversation={showNewConversation}
           onConversationCreated={handleConversationCreated}
-          userId={user.id}
+          userId={user?.id || 'guest-user-id'}
         />
       </div>
     </div>
